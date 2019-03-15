@@ -1,0 +1,38 @@
+#!/bin/sh
+
+# fail fast
+set -e
+
+# parse args
+BUILD_DIR="${1}"
+ENV_DIR=${3:-}
+
+SSH_KEY="$(cat $ENV_DIR/SSH_KEY)"
+
+if [ "${SSH_KEY}" != "" ]; then
+  echo "-----> Installing libDPS"
+	echo "       Adding private SSH key"
+
+	# The .ssh needs to be located in the home directory which is different to the
+	# home directory of the built machine. The symlink resolves the issue.
+	mkdir "${BUILD_DIR}/.ssh"
+	ln -s "${BUILD_DIR}/.ssh" "${HOME}/.ssh"
+	echo "${SSH_KEY}" | base64 --decode > "${HOME}/.ssh/id_rsa"
+  ssh -oStrictHostKeyChecking=no -T bitbucket.org
+
+  echo "       Cloning libDPS private repo"
+
+  git clone git@bitbucket.org:kontentcore/libdps-binaries.git ${BUILD_DIR}/.libDPS
+
+  echo "       Settting up runtime environment skript"
+  mkdir -p $BUILD_DIR/.profile.d
+  cat << EOF > ${BUILD_DIR}/.profile.d/libDPS.sh
+export PATH="\${HOME}/.libDPS/bin:\${PATH}"
+export LD_LIBRARY_PATH="\${HOME}/.libDPS/lib:\${LD_LIBRARY_PATH}"
+EOF
+
+	exit 0
+else
+	echo "-----> No SSH private key env variable"
+  exit 1
+fi
